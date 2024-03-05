@@ -16,10 +16,75 @@ allowed_name_regex <- paste0(
   "(?:_|\\\\.|[a-zA-Z0-9])*"
 )
 
+allowed_index_regex <- c(
+  full_column = paste0(
+  "\\:"
+  ),
+  starting_index = paste0(
+    "\\\\-{0,1}\\\\d+"
+  ),
+  indices = paste0(
+    "\\\\-{0,1}\\\\d+",
+    "\\\\:",
+    "\\\\-{0,1}\\\\d+"
+  ))
+
+# For summary row references.
+allowed_summary_index_regex <- c(
+  full_column = paste0(
+  "SUMMARY_\\:"
+  ),
+  starting_index = paste0(
+    "SUMMARY_\\\\d+"
+  ),
+  indices = paste0(
+    "SUMMARY_\\\\d+",
+    "\\\\:",
+    "\\\\d+"
+  ))
+
+
 pattern_to_grep <- function(pattern) {
   grep_pattern <- gsub("name", allowed_name_regex, pattern)
   grep_pattern <- gsub("\\{", "\\\\{", grep_pattern)
   grep_pattern <- gsub("\\}", "\\\\}", grep_pattern)
+
+  for (i in seq_along(allowed_index_regex)) {
+    find_pattern <- paste0(
+      "\\[\\(",
+      names(allowed_index_regex)[i],
+      "\\)\\]")
+    grep_pattern <- gsub(
+      find_pattern,
+      replacement =
+        paste0(
+          "\\\\[(",
+          allowed_index_regex[[i]],
+          ")\\\\]"),
+      grep_pattern
+    )
+  }
+
+
+  for (i in seq_along(allowed_summary_index_regex)) {
+    find_pattern <- paste0(
+      "\\[\\(",
+      names(allowed_summary_index_regex)[i],
+      "\\)\\]")
+    grep_pattern <- gsub(
+      find_pattern,
+      replacement =
+        paste0(
+          "\\\\[(",
+          allowed_summary_index_regex[[i]],
+          ")\\\\]"),
+      grep_pattern
+    )
+  }
+
+  grep_pattern <- gsub("\\$", "\\\\$", grep_pattern)
+
+  grep_pattern
 }
 
 pull_reference_components_with_pattern <- function(
@@ -42,7 +107,7 @@ pull_reference_components_with_pattern <- function(
     sheet = character(),
     table = character(),
     column = character(),
-    modifier = character()
+    row_first_index = integer(), row_last_index = integer()
   )
   return(
     list(
@@ -56,13 +121,13 @@ pull_reference_components_with_pattern <- function(
     reference_type = rep(pattern, length = n_matches),
     from = matches[[1]],
     to = matches[[1]] + attr(matches[[1]], "match.length") - 1,
-    sheet = character(n_matches),
-    table = character(n_matches),
-    column = character(n_matches),
-    modifier = character(n_matches)
+    sheet = rep(NA_character_, n_matches),
+    table = rep(NA_character_, n_matches),
+    column = rep(NA_character_, n_matches),
+    modifier = rep(NA_character_, n_matches)
   )
   }
-  
+
   for (i in seq_along(pull_names)) {
     references[[pull_names[i]]] <- gsub(
       grep_pattern,
@@ -80,7 +145,7 @@ pull_reference_components_with_pattern <- function(
         matches[[1]], "match.length")[i]),
         collapse = "X")
   }
-  return (
+  return(
     list(
       references = references,
       x = x
@@ -90,8 +155,8 @@ pull_reference_components_with_pattern <- function(
 
 function() {
   pull_reference_components_with_pattern(
-  x = "{sheet_name:tab2:second_column} * 10 + {sheet_name:tab2:second_column}",
-  pattern = "{(name):(name):(name)}",
+  x = "{sheet_name:tab2:second_column$[SUMMARY_4:10]} * 10 + {sheet_name:tab2:second_column[:]} + {first_column[3]}",
+  pattern = "{(name):(name):(name)[(full_column)]}",
   pull_names = c(
     "sheet", "table", "column")
   )
@@ -105,7 +170,7 @@ extract_references.basicColumn <- function(column) {
     sheet = character(),
     table = character(),
     column = character(),
-    modifier = character()
+    row_first_index = integer(), row_last_index = integer()
   )
   references
 }
@@ -118,7 +183,9 @@ extract_references.character <- function(x) {
     sheet = character(),
     table = character(),
     column = character(),
-    modifier = character()
+    row_first_index = integer(),
+    row_last_index = integer(),
+    row_fixed = logical()
   )
 
   result <- pull_reference_components_with_pattern(
@@ -127,6 +194,9 @@ extract_references.character <- function(x) {
   pull_names = c(
     "sheet", "table", "column")
   )
+  result$references$row_first_index <- rep(1L, nrow(result$references))
+  result$references$row_last_index <- rep(NA_integer_, nrow(result$references))
+  result$references$row_fixed <- rep(FALSE, nrow(result$references))
   references <- rbind(
     references,
     result$references
@@ -138,6 +208,9 @@ extract_references.character <- function(x) {
   pull_names = c(
     "table", "column")
   )
+  result$references$row_first_index <- rep(1L, nrow(result$references))
+  result$references$row_last_index <- rep(NA_integer_, nrow(result$references))
+  result$references$row_fixed <- rep(FALSE, nrow(result$references))
   references <- rbind(
     references,
     result$references
@@ -150,6 +223,99 @@ extract_references.character <- function(x) {
   pull_names = c(
     "column")
   )
+  result$references$row_first_index <- rep(1L, nrow(result$references))
+  result$references$row_last_index <- rep(NA_integer_, nrow(result$references))
+  result$references$row_fixed <- rep(FALSE, nrow(result$references))
+  references <- rbind(
+    references,
+    result$references
+  )
+  x <- result$x
+
+  result <- pull_reference_components_with_pattern(
+  x = x,
+  pattern = "{(name):(name):(name)$[(starting_index)]}",
+  pull_names = c(
+    "sheet", "table", "column", "row_first_index")
+  )
+  result$references$row_first_index <- as.integer(
+    result$references$row_first_index
+  )
+  result$references$row_last_index <- rep(NA_integer_, nrow(result$references))
+  result$references$row_fixed <- rep(TRUE, nrow(result$references))
+  references <- rbind(
+    references,
+    result$references
+  )
+  x <- result$x
+
+  result <- pull_reference_components_with_pattern(
+  x = x,
+  pattern = "{(name):(name):(name)[(starting_index)]}",
+  pull_names = c(
+    "sheet", "table", "column", "row_first_index")
+  )
+  result$references$row_first_index <- as.integer(
+    result$references$row_first_index
+  )
+  result$references$row_last_index <- rep(NA_integer_, nrow(result$references))
+  result$references$row_fixed <- rep(FALSE, nrow(result$references))
+  references <- rbind(
+    references,
+    result$references
+  )
+  x <- result$x
+
+  result <- pull_reference_components_with_pattern(
+  x = x,
+  pattern = "{(name):(name):(name)$[(indices)]}",
+  pull_names = c(
+    "sheet", "table", "column", "indices")
+  )
+  result$references$row_first_index <- as.integer(
+    sub("^(\\-{0,1}\\d+)\\:(\\-{0,1}\\d+)$", "\\1", result$references$indices)
+  )
+  result$references$row_last_index <- as.integer(
+    sub("^(\\-{0,1}\\d+)\\:(\\-{0,1}\\d+)$", "\\2", result$references$indices)
+  )
+  result$references$row_fixed <- rep(TRUE, nrow(result$references))
+  result$references$indices <- NULL
+  references <- rbind(
+    references,
+    result$references
+  )
+  x <- result$x
+
+  result <- pull_reference_components_with_pattern(
+  x = x,
+  pattern = "{(name):(name):(name)[(indices)]}",
+  pull_names = c(
+    "sheet", "table", "column", "indices")
+  )
+  result$references$row_first_index <- as.integer(
+    sub("^(\\-{0,1}\\d+)\\:(\\-{0,1}\\d+)$", "\\1", result$references$indices)
+  )
+  result$references$row_last_index <- as.integer(
+    sub("^(\\-{0,1}\\d+)\\:(\\-{0,1}\\d+)$", "\\2", result$references$indices)
+  )
+  result$references$row_fixed <- rep(FALSE, nrow(result$references))
+  result$references$indices <- NULL
+  references <- rbind(
+    references,
+    result$references
+  )
+  x <- result$x
+
+  result <- pull_reference_components_with_pattern(
+  x = x,
+  pattern = "{(name):(name):(name)[(full_column)]}",
+  pull_names = c(
+    "sheet", "table", "column")
+  )
+  result$references$row_first_index <- rep(0, nrow(result$references))
+  result$references$row_last_index <- rep("N", nrow(result$references))
+  result$references$row_fixed <- rep(FALSE, nrow(result$references))
+  result$references$indices <- NULL
   references <- rbind(
     references,
     result$references
@@ -177,7 +343,7 @@ extract_references.formulaColumn <- function(column) {
   main_references <- extract_references(
     column$x
   )
-  main_references$type <- rep("main", nrow(main_references))
+  main_references$type <- rep("column:main", nrow(main_references))
   if (!inherits(column$formatting, "conditionalFormattingElement")) {
     return(main_references)
   }
@@ -185,6 +351,37 @@ extract_references.formulaColumn <- function(column) {
   rbind(
     main_references,
     extract_references(column$formatting)
+  )
+}
+
+extract_references.formattedFormulaField <- function(x) {
+  main_references <- extract_references(
+    x$x
+  )
+  main_references$type <- rep("main", nrow(main_references))
+  if (!inherits(x$formatting, "conditionalFormattingElement")) {
+    return(main_references)
+  }
+  formatting_references <- extract_references(x$formatting)
+  formatting_references$type <- rep("formatting", nrow(formatting_references))
+  rbind(
+    main_references,
+    formatting_references
+  )
+}
+
+extract_references.Summary <- function(x) {
+  extract_references(x$field)
+}
+
+extract_references.summaryRow <- function(x) {
+  x <- table$summary_rows[[1]]
+  do.call(
+    rbind,
+    lapply(
+      x,
+      extract_references
+    )
   )
 }
 
@@ -198,9 +395,65 @@ extract_references.Table <- function(
     sheet = character(),
     table = character(),
     column = character(),
-    modifier = character()
+    row_first_index = integer(), row_last_index = integer()
   )
-  do.call(rbind, lapply(
+  column_references <- do.call(rbind, lapply(
     table$column_set,
     extract_references))
+  summary_row_references <- do.call(
+    rbind,
+    lapply(
+    table$summary_rows,
+    extract_references))
+  summary_row_references$type <- paste0(
+    "summary_row:",
+    summary_row_references$type
+  )
+  output <- rbind(
+    column_references,
+    summary_row_references
+  )
+  output$table[is.na(output$table)] <- table$name
+  output
+}
+
+extract_references.Pair <- function(
+  pair) {
+
+  references <- data.frame(
+    reference = character(),
+    from = integer(),
+    to = integer(),
+    sheet = character(),
+    table = character(),
+    column = character(),
+    row_first_index = integer(), row_last_index = integer()
+  )
+
+  outp <- list(
+    extract_references(pair$item1),
+    extract_references(pair$item2)
+  )
+
+  do.call(rbind, outp)
+}
+
+extract_references.Sheet <- function(
+  sheet) {
+
+  output <- extract_references(
+    sheet$pair
+  )
+  output$sheet[is.na(output$sheet)] <- sheet$name
+  output
+}
+
+extract_references.sheetSet <- function(x) {
+  do.call(
+    rbind,
+    lapply(
+      x$sheets,
+      extract_references
+    )
+  )
 }

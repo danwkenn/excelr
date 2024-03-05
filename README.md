@@ -5,6 +5,22 @@
 ```
 
 ```
+{column_name[3]} * 2
+```
+
+```
+{column_name[:]} * 2
+```
+
+```
+{column_name$[2]} * 2
+```
+
+```
+{column_name$[2]} * 2
+```
+
+```
 {tab_name:column_name} * 2
 ```
 

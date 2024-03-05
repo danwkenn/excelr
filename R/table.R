@@ -136,7 +136,8 @@ new_Table <- function(
       column_set = column_set,
       summary_rows = summary_rows,
       column_order = column_order
-    )
+    ),
+    class = "Table"
   )
 }
 
@@ -200,15 +201,17 @@ function() {
       )
     )
   )
-  summary_rows <- new_summaryRow(
+  summary_rows <- list(new_summaryRow(
     new_Summary(
       field = formattedFormulaField(
-        x = "SUM(first_column)",
+        x = "SUM({first_column})",
         formatting = NULL
       ),
       column_index = "first_column"
     )
   )
+  )
+
   column_order <- c(
     "first_column",
     "second_column"
@@ -250,4 +253,7 @@ function() {
     ),
     NULL
   )
+
+extract_references(sheet_set)
+
 }
