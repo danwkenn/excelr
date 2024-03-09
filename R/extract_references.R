@@ -1,16 +1,3 @@
-extract_references <- function(x) {
-  UseMethod("extract_references")
-}
-
-accepted_modifiers <- c("SHIFT")
-modifier_regex <- paste0(
-  "MODIFIER_(?:",
-  paste0(
-    accepted_modifiers,
-    collapse = "|"
-  ),
-  ")\\\\((?:|(?:\\-|)\\d+(?:\\,(?:\\-|)\\d+)*\\\\)"
-)
 allowed_name_regex <- paste0(
   "\\\\w",
   "(?:_|\\\\.|[a-zA-Z0-9])*"
@@ -24,25 +11,52 @@ allowed_index_regex <- c(
     "\\\\-{0,1}\\\\d+"
   ),
   indices = paste0(
-    "\\\\-{0,1}\\\\d+",
+    "\\\\-{0,1}\\\\d+)",
     "\\\\:",
-    "\\\\-{0,1}\\\\d+"
+    "(\\\\-{0,1}\\\\d+"
   ))
 
-# For summary row references.
-allowed_summary_index_regex <- c(
-  full_column = paste0(
-  "SUMMARY_\\:"
-  ),
-  starting_index = paste0(
-    "SUMMARY_\\\\d+"
-  ),
-  indices = paste0(
-    "SUMMARY_\\\\d+",
-    "\\\\:",
-    "\\\\d+"
-  ))
+extract_references <- function(x) {
+  UseMethod("extract_references")
+}
 
+# 1. Identify new reference.
+# 2. Coerce into reference format
+
+new_Reference <- function(
+  sheet,
+  table,
+  field,
+  column,
+  fixed_row,
+  row_first_index,
+  row_last_index
+) {
+  structure(
+    list(
+      sheet = sheet,
+      table = table,
+      field = field,
+      column = column,
+      fixed_row = fixed_row,
+      row_first_index = row_first_index,
+      row_last_index = row_last_index
+    ),
+    class = "Reference"
+  )
+}
+
+new_preExcelFormula <- function(
+  formula,
+  references) {
+  structure(
+    list(
+      formula = formula,
+      references = references
+    ),
+    class = "preExcelFormula"
+  )
+}
 
 pattern_to_grep <- function(pattern) {
   grep_pattern <- gsub("name", allowed_name_regex, pattern)
@@ -65,102 +79,72 @@ pattern_to_grep <- function(pattern) {
     )
   }
 
-
-  for (i in seq_along(allowed_summary_index_regex)) {
-    find_pattern <- paste0(
-      "\\[\\(",
-      names(allowed_summary_index_regex)[i],
-      "\\)\\]")
-    grep_pattern <- gsub(
-      find_pattern,
-      replacement =
-        paste0(
-          "\\\\[(",
-          allowed_summary_index_regex[[i]],
-          ")\\\\]"),
-      grep_pattern
-    )
-  }
-
   grep_pattern <- gsub("\\$", "\\\\$", grep_pattern)
 
   grep_pattern
 }
 
-pull_reference_components_with_pattern <- function(
-  x,
+new_referenceFormat <- function(
   pattern,
-  pull_names) {
+  pull_names,
+  preset) {
 
-  # Coerce_pattern:
-  grep_pattern <- pattern_to_grep(pattern)
-  matches <- gregexpr(grep_pattern, x)
-  matching_references <- regmatches(x, matches)[[1]]
-  n_matches <- length(matches[[1]])
-  if (matches[[1]][1] == -1) {
-    n_matches <- 0
-  references <- data.frame(
-    reference = matching_references,
-    reference_type = rep(pattern, length = n_matches),
-    from = integer(),
-    to = integer(),
-    sheet = character(),
-    table = character(),
-    column = character(),
-    row_first_index = integer(), row_last_index = integer()
-  )
-  return(
+  structure(
     list(
-      references = references,
-      x = x
-    )
+      pattern = pattern,
+      pull_names = pull_names,
+      preset = preset
+    ),
+    class = "referenceFormat"
   )
-  } else {
-    references <- data.frame(
-    reference = matching_references,
-    reference_type = rep(pattern, length = n_matches),
-    from = matches[[1]],
-    to = matches[[1]] + attr(matches[[1]], "match.length") - 1,
-    sheet = rep(NA_character_, n_matches),
-    table = rep(NA_character_, n_matches),
-    column = rep(NA_character_, n_matches),
-    modifier = rep(NA_character_, n_matches)
-  )
-  }
+}
 
-  for (i in seq_along(pull_names)) {
-    references[[pull_names[i]]] <- gsub(
+convert_character_to_Reference <- function(
+  x,
+  reference_format) {
+
+ reference <- new_Reference(
+  sheet = NA_character_,
+  table = NA_character_,
+  field = NA_character_,
+  column = NA_character_,
+  fixed_row = NA_character_,
+  row_first_index = NA_character_,
+  row_last_index = NA_character_)
+
+  grep_pattern <- pattern_to_grep(reference_format$pattern)
+
+  for (i in seq_along(reference_format$pull_names)) {
+    reference[[reference_format$pull_names[i]]] <- gsub(
       grep_pattern,
       paste0("\\", i),
-      matching_references
+      x
     )
   }
-  for (i in seq_along(matches[[1]])) {
-    substr(
-      x,
-      matches[[1]][i],
-      matches[[1]][i] + attr(
-        matches[[1]], "match.length")[i] -1
-      ) <- paste0(rep("X",attr(
-        matches[[1]], "match.length")[i]),
-        collapse = "X")
+
+  for (i in seq_along(reference_format$preset)) {
+    reference[[names(
+      reference_format$preset
+    )[[i]]]] <- reference_format$preset[[i]]
   }
-  return(
-    list(
-      references = references,
-      x = x
-    )
-  )
+  reference
 }
 
 function() {
-  pull_reference_components_with_pattern(
-  x = "{sheet_name:tab2:second_column$[SUMMARY_4:10]} * 10 + {sheet_name:tab2:second_column[:]} + {first_column[3]}",
-  pattern = "{(name):(name):(name)[(full_column)]}",
-  pull_names = c(
-    "sheet", "table", "column")
+  x = "{S-sheet_name:T-tab2:F-body:C-second_column[4:10]}"
+  reference_format <- new_referenceFormat(
+  pattern = "{S-(name):T-(name):F-(name):C-(name)[(indices)]}",
+  pull_names = c("sheet", "table", "field", "column", "row_first_index", "row_last_index"),
+  preset = list(
+    fixed_row = FALSE
+  )
+  )
+  convert_character_to_Reference(
+    x,
+    reference_format
   )
 }
+
 extract_references.basicColumn <- function(column) {
   references <- data.frame(
     reference = character(),
