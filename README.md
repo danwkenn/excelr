@@ -1,4 +1,5 @@
 
+Progress: Just finished the find_next_reference. Now need to build a function to roll through each of the index types.
 
 ```
 {column_name} * 2

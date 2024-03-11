@@ -1,0 +1,7 @@
+  - pattern: "{S-(name):T-(name):F-(name):C-(name)[]}",
+    pull_names:
+      - sheet
+      - table
+      - field
+      - column
+    preset: ~

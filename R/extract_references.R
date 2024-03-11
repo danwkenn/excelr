@@ -16,6 +16,48 @@ allowed_index_regex <- c(
     "(\\\\-{0,1}\\\\d+"
   ))
 
+index_reference_data <- list(
+  starting_index_nonfixed = list(
+    pattern = "[(starting_index)]",
+    pull_names = "row_first_index",
+    preset = list(
+      fixed_row = FALSE,
+      row_last_index = NA_real_
+    )
+  ),
+  null_index = list(
+    pattern = "",
+    pull_names = NULL,
+    preset = list(
+      fixed_row = FALSE,
+      row_first_index = NA_real_,
+      row_last_index = NA_real_
+    )
+  ),
+  starting_index_fixed = list(
+    pattern = "[\\$(starting_index)]",
+    pull_names = "row_first_index",
+    preset = list(
+      fixed_row = TRUE,
+      row_last_index = NA_real_
+    )
+  ),
+  indices_nonfixed = list(
+    pattern = "[(indices)]",
+    pull_names = c("row_first_index", "row_last_index"),
+    preset = list(
+      fixed_row = FALSE
+    )
+  ),
+  indices_fixed = list(
+    pattern = "[\\$(indices)]",
+    pull_names = c("row_first_index", "row_last_index"),
+    preset = list(
+      fixed_row = TRUE
+    )
+  )
+)
+
 extract_references <- function(x) {
   UseMethod("extract_references")
 }
@@ -130,14 +172,101 @@ convert_character_to_Reference <- function(
   reference
 }
 
-function() {
-  x = "{S-sheet_name:T-tab2:F-body:C-second_column[4:10]}"
-  reference_format <- new_referenceFormat(
-  pattern = "{S-(name):T-(name):F-(name):C-(name)[(indices)]}",
-  pull_names = c("sheet", "table", "field", "column", "row_first_index", "row_last_index"),
-  preset = list(
-    fixed_row = FALSE
+create_ReferenceFormat_from_partialReferenceFormat <- function(
+  partial_reference_format,
+  index_type) {
+
+  index <- index_reference_data[[index_type]]
+  partial_reference_format$pattern <- sub(
+    "\\[\\]",
+    index$pattern,
+    partial_reference_format$pattern)
+  partial_reference_format$pull_names <- append(
+    partial_reference_format$pull_names,
+    index$pull_names
   )
+  partial_reference_format$preset <- append(
+    partial_reference_format$preset,
+    index$preset
+  )
+
+  partial_reference_format
+}
+
+find_next_reference <- function(
+  preexcel_formula,
+  reference_format) {
+
+  COMPLETE <- FALSE
+  grep_pattern <- pattern_to_grep(reference_format$pattern)
+
+  matches <- gregexpr(grep_pattern, preexcel_formula$formula)[[1]]
+  if (matches[[1]] == -1) {
+    return(
+      list(
+        preexcel_formula = preexcel_formula,
+        COMPLETE = TRUE
+      )
+    )
+  }
+
+    x <- preexcel_formula$formula
+    start <- matches[[1]]
+    finish <- matches[[1]] +
+      attr(matches, "match.length")[[1]] - 1
+    match_str <- substr(
+      x,
+      start,
+      finish
+    )
+    ref <- convert_character_to_Reference(
+      match_str,
+      reference_format
+    )
+    new_id <- length(preexcel_formula$references) + 1
+    match1 <- matches[1]
+    attr(match1, "match.length") <- 
+      attr(matches, "match.length")[1]
+    attr(match1, "index.type") <- 
+      attr(matches, "index.type")[1]
+    attr(match1, "useBytes") <- 
+      attr(matches, "useBytes")[1]
+    regmatches(
+      x,
+      match1
+    ) <- paste0("ID:", new_id)
+  preexcel_formula$references <- append(
+    preexcel_formula$references,
+    list(ref),
+  )
+  preexcel_formula$formula <- x
+  return(
+    list(
+      preexcel_formula = preexcel_formula,
+      COMPLETE = FALSE
+    )
+  )
+}
+
+function() {
+  index_type = "indices_nonfixed"
+  x = "2 + {S-sheet_name:T-tab2:F-body:C-second_column[4:10]} + {S-sheet_name:T-tab2:F-body:C-second_column[4:10]}"
+  partial_reference_format <- list(
+    pattern = "{S-(name):T-(name):F-(name):C-(name)[]}",
+    pull_names = c("sheet", "table", "field", "column"),
+    preset = NULL
+  )
+  reference_format <- create_ReferenceFormat_from_partialReferenceFormat(
+    partial_reference_format,
+    index_type
+  )
+  preexcel_formula <- new_preExcelFormula(
+    formula = x,
+    references = list()
+  )
+  find_next_reference(
+    preexcel_formula,
+    reference_format
   )
   convert_character_to_Reference(
     x,
