@@ -1,7 +1,91 @@
-  - pattern: "{S-(name):T-(name):F-(name):C-(name)[]}",
+  - pattern: "{S-(name):T-(name):F-(name):C-(name)[]}"
     pull_names:
       - sheet
       - table
       - field
       - column
     preset: ~
+  - pattern: "{S-(name):T-(name):F-(name):(name)[]}"
+    pull_names:
+      - sheet
+      - table
+      - field
+      - column
+    preset: ~
+  - pattern: "{S-(name):T-(name):(name):(name)[]}"
+    pull_names:
+      - sheet
+      - table
+      - field
+      - column
+    preset: ~
+  - pattern: "{S-(name):(name):(name):(name)[]}"
+    pull_names:
+      - sheet
+      - table
+      - field
+      - column
+    preset: ~
+  - pattern: "{(?:S-|)(name):(?:T-|)(name):(?:F-|)(name):(?:C-|)(name)[]}"
+    pull_names:
+      - sheet
+      - table
+      - field
+      - column
+    preset: ~
+  - pattern: "{(?:T-|)(name):F-(name):(?:C-|)(name)[]}"
+    pull_names:
+      - table
+      - field
+      - column
+    preset:
+      sheet: .na
+  - pattern: "{S-(name):F-(name):(?:C-|)(name)[]}"
+    pull_names:
+      - sheet
+      - field
+      - column
+    preset:
+      table: .na
+  - pattern: "{(?:S-|)(name):(?:T-|)(name):(?:C-|)(name)[]}"
+    pull_names:
+      - sheet
+      - table
+      - column
+    preset:
+      field: "body"
+  - pattern: "{(?:S-|)(name):(?:T-|)(name):(?:C-|)(name)[]}"
+    pull_names:
+      - sheet
+      - table
+      - column
+    preset:
+      field: "body"
+  - pattern: "{S-(name):(?:C-|)(name)[]}"
+    pull_names:
+      - sheet
+      - column
+    preset:
+      field: "body"
+      table: .na
+  - pattern: "{F-(name):(?:C-|)(name)[]}"
+    pull_names:
+      - field
+      - column
+    preset:
+      table: .na
+      sheet: .na
+  - pattern: "{(?:T-|)(name):(?:C-|)(name)[]}"
+    pull_names:
+      - table
+      - column
+    preset:
+      field: "body"
+      sheet: .na
+  - pattern: "{(?:C-|)(name)[]}"
+    pull_names:
+      - column
+    preset:
+      table: .na
+      field: "body"
+      sheet: .na

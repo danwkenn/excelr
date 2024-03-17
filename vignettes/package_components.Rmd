@@ -1,0 +1,152 @@
+---
+title: "Package Components for Later Remembering"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Package Components for Later Remembering}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(excelr)
+```
+
+```{r preExcelFormula}
+  x = "2 + {second_column[$4]} + {S-sheet_name:T-tab2:C-second_column[$4]} + {S-sheet_name:T-tab2:F-body:C-second_column[$4]} + {sheet_name:tab2:F-body:second_column[4:10]}"
+  partial_reference_formats <- yaml::read_yaml(
+    "inst/reference_formats.yaml"
+  )
+  extract_references(x)
+  preexcel_formula <- new_preExcelFormula(
+    formula = x,
+    references = list()
+  )
+
+  preexcel_formula <- find_references(
+    preexcel_formula
+  )
+```
+
+```{r SimpleSetup}
+  col1 <- new_basicColumn(
+    x = iris[1],
+    formatting = NULL
+  )
+  col2 <- new_formulaColumn(
+    x = "{first_column}",
+    formatting = NULL
+  )
+
+  colset <- new_columnSet(
+    first_column = col1,
+    second_column = col2
+  )
+  title <- new_formattedField(
+    x = "Test Table",
+    formatting = NULL
+  )
+  subtitle <- new_formattedField(
+    x = "Test Table subtitle",
+    formatting = NULL
+  )
+  caption <- new_formattedField(
+    x = "caption of the table",
+    formatting = NULL
+  )
+  header <- new_columnHeaderStructure(
+    new_columnHeaderSet(
+      new_columnHeader(
+        new_formattedField(
+          x = "Top Header",
+          formatting = NULL
+        ),
+        column_index = c(
+          "first_column",
+          "second_column"
+        )
+      )
+    ),
+    new_columnHeaderSet(
+      new_columnHeader(
+        new_formattedField(
+          x = "Second Header",
+          formatting = NULL
+        ),
+        column_index = c(
+          "first_column"
+        )
+      ),
+      new_columnHeader(
+        new_formattedField(
+          x = "Second Header",
+          formatting = NULL
+        ),
+        column_index = c(
+          "second_column"
+        )
+      )
+    )
+  )
+  summary_rows <- list(new_summaryRow(
+    new_Summary(
+      field = formattedFormulaField(
+        x = "SUM({first_column})",
+        formatting = NULL
+      ),
+      column_index = "first_column"
+    )
+  )
+  )
+
+  column_order <- c(
+    "first_column",
+    "second_column"
+  )
+
+  table <- new_Table(
+    name = "tab1",
+    title = title,
+    subtitle = subtitle,
+    caption = caption,
+    column_header_structure = header,
+    column_set = colset,
+    summary_rows = summary_rows,
+    column_order = column_order
+  )
+
+  pair <- new_Pair(
+  new_Pair(
+    table,
+    {tab <- table; tab$name <- "tab2"; tab},
+    "row"
+  ),
+  new_Pair(
+    {tab <- table; tab$name <- "tab3"; tab},
+    {tab <- table; tab$name <- "tab4"; tab},
+    "row"
+  ),
+  "column")
+  extract_references(pair)
+  sheet <- new_Sheet(
+  pair,
+  name = "sheet_name",
+  title = "Sheet Title"
+  )
+
+  sheet_set <- new_sheetSet(
+    list(
+      sheet
+    ),
+    NULL
+  )
+
+extract_references(sheet_set)
+
+```
